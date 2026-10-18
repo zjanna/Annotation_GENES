@@ -1,0 +1,128 @@
+# -*- coding: utf-8 -*-
+# ============================================================================
+# Snakefile_dog: annotation comparison for the DOG study
+# ----------------------------------------------------------------------------
+# Study : Canine cryptorchidism / KAT6A (PNAS 2024, doi:10.1073/pnas.2312724121)
+# Data  : the 22 libraries deposited in SRA PRJNA901164 (PE ~101 bp, TruSeq
+#         Stranded mRNA, NovaSeq 6000), downloaded from ENA
+# Alignment and counting:
+#   STAR 2.5.3a, GENOME-ONLY index, splice junctions inserted at mapping time
+#   from the GTF (--sjdbGTFfile, overhang 100), default STAR settings, untrimmed
+#   reads; featureCounts paired, REVERSE-stranded (-s 2), -O -M.
+# Every annotation is treated the same way, each on its OWN genome with native
+# chromosome names (no renaming):
+#   ensembl : Ensembl 92 genome + Ensembl 92 GTF + gene models for AMH and HMGA2,
+#             which release 92 lacks (../../data/dog_added_gene_models/amh_hmga2.gtf)
+#   refseq  : RefSeq GCF_000002285.3 genome + RefSeq GTF   (NC_... names)
+#   ucsc    : UCSC canFam3 genome + canFam3.ncbiRefSeq GTF  (chr... names)
+# Requires star_index_mode: per_annotation.
+# Run   :  snakemake -s Snakefile_dog --profile profiles/slurm
+# ============================================================================
+
+configfile: "config/pipeline.yaml"
+
+ORGANISM = "dog"
+COUNTS_ONLY = True
+
+# --- STAR 2.5.3a, genome-only index, splice junctions from the GTF at mapping ---
+STAR_ENV = "envs/star253.yaml"
+SJDB_AT_MAPPING = True
+SJDB_OVERHANG = 100          # STAR default (reads ~101 bp)
+STAR_EXTRA = ""              # default STAR settings
+FC_STRAND = 2                # reverse-stranded (TruSeq Stranded)
+
+# --- one genome per annotation (native chromosome names) ---
+GENOMES = {
+    "ensembl": {"path": f"reference/{ORGANISM}/genome/ensembl92.CanFam3.1.dna.toplevel.fa",
+                "url":  "https://ftp.ensembl.org/pub/release-92/fasta/canis_familiaris/dna/Canis_familiaris.CanFam3.1.dna.toplevel.fa.gz"},
+    "refseq":  {"path": f"reference/{ORGANISM}/genome/GCF_000002285.3_CanFam3.1_genomic.fa",
+                "url":  "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9615/105/GCF_000002285.3_CanFam3.1/GCF_000002285.3_CanFam3.1_genomic.fna.gz"},
+    "ucsc":    {"path": f"reference/{ORGANISM}/genome/canFam3.fa",
+                "url":  "https://hgdownload.soe.ucsc.edu/goldenPath/canFam3/bigZips/canFam3.fa.gz"},
+}
+REF = GENOMES["ensembl"]["path"]
+GENOME_URL = GENOMES["ensembl"]["url"]
+
+# --- annotations to compare (Ensembl 92 + AMH + HMGA2 = anchor) ---
+ENSEMBL_KEY = "ensembl"
+ANNOTATIONS = {
+    "ensembl": {
+        "url": "https://ftp.ensembl.org/pub/release-92/gtf/canis_familiaris/Canis_familiaris.CanFam3.1.92.gtf.gz",
+        "extra_gtf": "../../data/dog_added_gene_models/amh_hmga2.gtf",
+        "chrom_fix": "none",
+    },
+    "refseq": {
+        "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9615/105/GCF_000002285.3_CanFam3.1/GCF_000002285.3_CanFam3.1_genomic.gtf.gz",
+        "chrom_fix": "none",
+    },
+    "ucsc": {
+        "url": "https://hgdownload.soe.ucsc.edu/goldenPath/canFam3/bigZips/genes/canFam3.ncbiRefSeq.gtf.gz",
+        "chrom_fix": "none",
+    },
+}
+
+# --- samples: the 22 libraries deposited in SRA, downloaded as .fastq.gz from ENA ---
+_ENA = "ftp.sra.ebi.ac.uk/vol1/fastq/SRR225"
+ENA_SEP = "."                # downloaded as {sample}.1.fastq.gz
+ENA_FASTQ = {   # sample: [(R1 url, md5), (R2 url, md5)]; all 22 libraries deposited in SRA (PRJNA901164)
+    "S1545Nr1": [(f"{_ENA}/035/SRR22514235/SRR22514235_1.fastq.gz", "edf24f250206c8453724ec02a645b2e2"),
+                (f"{_ENA}/035/SRR22514235/SRR22514235_2.fastq.gz", "bf6d4359dbe9b0c76606d0a9b297f5e5")],
+    "S1545Nr2": [(f"{_ENA}/034/SRR22514234/SRR22514234_1.fastq.gz", "fc181cab7c61abe895fd0b3603a015e5"),
+                (f"{_ENA}/034/SRR22514234/SRR22514234_2.fastq.gz", "9eb67463d3350ffac8263e9567879a00")],
+    "S1545Nr3": [(f"{_ENA}/023/SRR22514223/SRR22514223_1.fastq.gz", "82e9947799689aca9c9bc1b19d6efa1d"),
+                (f"{_ENA}/023/SRR22514223/SRR22514223_2.fastq.gz", "e472635ffe7689594a42db8a20feaef3")],
+    "S1545Nr4": [(f"{_ENA}/020/SRR22514220/SRR22514220_1.fastq.gz", "f66e8e29a381c500046d1467b8ef363c"),
+                (f"{_ENA}/020/SRR22514220/SRR22514220_2.fastq.gz", "d2d0ea175c1d0de7fb881601483a1e0c")],
+    "S1545Nr5": [(f"{_ENA}/019/SRR22514219/SRR22514219_1.fastq.gz", "483357550f13889176cd43e6a633ded4"),
+                (f"{_ENA}/019/SRR22514219/SRR22514219_2.fastq.gz", "d8c7337392b33660406fe9938f7af4b1")],
+    "S1545Nr6": [(f"{_ENA}/018/SRR22514218/SRR22514218_1.fastq.gz", "caec8ad799395b074dc697c377ea5c55"),
+                (f"{_ENA}/018/SRR22514218/SRR22514218_2.fastq.gz", "105ebaee7d12f2136d2c4ea5df11a478")],
+    "S1545Nr7": [(f"{_ENA}/017/SRR22514217/SRR22514217_1.fastq.gz", "1af282754f116fbb1fb0dd6852017141"),
+                (f"{_ENA}/017/SRR22514217/SRR22514217_2.fastq.gz", "33321ee8279f600e3ef52fd02b5e0bb8")],
+    "S1545Nr8": [(f"{_ENA}/016/SRR22514216/SRR22514216_1.fastq.gz", "bbf5b743fffcd008875c5cdc93f55c86"),
+                (f"{_ENA}/016/SRR22514216/SRR22514216_2.fastq.gz", "870f915d2767400bbb359f4d97bad11c")],
+    "S1545Nr9": [(f"{_ENA}/015/SRR22514215/SRR22514215_1.fastq.gz", "351fd70e5cd2ff5160b80289350a0c4b"),
+                (f"{_ENA}/015/SRR22514215/SRR22514215_2.fastq.gz", "374e06a0914b356b45730e64b9172c32")],
+    "S1545Nr11": [(f"{_ENA}/014/SRR22514214/SRR22514214_1.fastq.gz", "029a9dff94b2495797428ab73ff9be3c"),
+                 (f"{_ENA}/014/SRR22514214/SRR22514214_2.fastq.gz", "48a9889cdb7c18c435ed12048aadc82e")],
+    "S1545Nr12": [(f"{_ENA}/033/SRR22514233/SRR22514233_1.fastq.gz", "125f1e6e281b91be78949b64bdc1223d"),
+                 (f"{_ENA}/033/SRR22514233/SRR22514233_2.fastq.gz", "ac2d34914d24b8c00bcd15ae17063b69")],
+    "S1545Nr13": [(f"{_ENA}/032/SRR22514232/SRR22514232_1.fastq.gz", "05cb6523fbd7fe8acf07b1da6caddb1e"),
+                 (f"{_ENA}/032/SRR22514232/SRR22514232_2.fastq.gz", "3b2cad89996fdbe131c3a3c14341bbdb")],
+    "S1545Nr14": [(f"{_ENA}/031/SRR22514231/SRR22514231_1.fastq.gz", "64d0b35422b8308e89768c233e8ce74f"),
+                 (f"{_ENA}/031/SRR22514231/SRR22514231_2.fastq.gz", "b74a413033df0e07e8530d7ec5c168e7")],
+    "S1545Nr15": [(f"{_ENA}/030/SRR22514230/SRR22514230_1.fastq.gz", "0bd287a386e3a301a8caf119d1ae7562"),
+                 (f"{_ENA}/030/SRR22514230/SRR22514230_2.fastq.gz", "9499a36dddfb6872247f8ea7527ff6bc")],
+    "S1545Nr16": [(f"{_ENA}/029/SRR22514229/SRR22514229_1.fastq.gz", "78bf49a39a51a821cec74cae677ed775"),
+                 (f"{_ENA}/029/SRR22514229/SRR22514229_2.fastq.gz", "bc95d3db7eeba2d82b8095abcc1961b9")],
+    "S1545Nr17": [(f"{_ENA}/028/SRR22514228/SRR22514228_1.fastq.gz", "97c1009323ccd4d47fb99bb87b7477b1"),
+                 (f"{_ENA}/028/SRR22514228/SRR22514228_2.fastq.gz", "0516e24da2f69774512068495a4a8e30")],
+    "S1545Nr19": [(f"{_ENA}/027/SRR22514227/SRR22514227_1.fastq.gz", "92671f13ad11ed8a9e19469cb67b904b"),
+                 (f"{_ENA}/027/SRR22514227/SRR22514227_2.fastq.gz", "599e533fe4e20569757190d8bc01c029")],
+    "S1545Nr20": [(f"{_ENA}/026/SRR22514226/SRR22514226_1.fastq.gz", "60091775d214429b70a36ddd12e63aaf"),
+                 (f"{_ENA}/026/SRR22514226/SRR22514226_2.fastq.gz", "daef0fe65463ec9e078f4490f5892049")],
+    "S1545Nr21": [(f"{_ENA}/025/SRR22514225/SRR22514225_1.fastq.gz", "2333b729c1dd272fff198fdc8425b91e"),
+                 (f"{_ENA}/025/SRR22514225/SRR22514225_2.fastq.gz", "1e89fba5a716347441175cac101df648")],
+    "S1545Nr22": [(f"{_ENA}/024/SRR22514224/SRR22514224_1.fastq.gz", "ae025ceb861b271310781857fea206e8"),
+                 (f"{_ENA}/024/SRR22514224/SRR22514224_2.fastq.gz", "90680afb11313747c8cf39c84ffa547a")],
+    "S1545Nr23": [(f"{_ENA}/022/SRR22514222/SRR22514222_1.fastq.gz", "5a4e5d80c930f0f479acce2af235173f"),
+                 (f"{_ENA}/022/SRR22514222/SRR22514222_2.fastq.gz", "e327582435cb918e59e166f84210afbe")],
+    "S1545Nr26": [(f"{_ENA}/021/SRR22514221/SRR22514221_1.fastq.gz", "2c56aec43c04846624b0dbd6e1b5c59d"),
+                 (f"{_ENA}/021/SRR22514221/SRR22514221_2.fastq.gz", "d562a69bb0ee9aef4a6153a5d1a57238")],
+}
+SAMPLES = list(ENA_FASTQ)
+
+# Differential expression and fragile-gene analysis are run on the laptop from the
+# count matrices (../../run_all.sh); this workflow stops at the counts.
+
+def get_reads(sample):
+    return {"r1": f"data/{ORGANISM}/reads/{sample}.1.fastq.gz",
+            "r2": f"data/{ORGANISM}/reads/{sample}.2.fastq.gz"}
+
+# --- default target (MUST be the first rule; wildcard-free) ---
+rule all:
+    input:
+        lambda wc: FINAL_OUTPUTS,
+
+# --- shared engine ---
+include: "common.smk"

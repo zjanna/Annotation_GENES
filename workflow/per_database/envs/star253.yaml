@@ -1,0 +1,7 @@
+# STAR 2.5.3a (dog)
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - star =2.5.3a

@@ -1,0 +1,127 @@
+# -*- coding: utf-8 -*-
+# ============================================================================
+# Snakefile_dog10k: DOG on the current assembly Dog10K_Boxer_Tasha: COUNTS ONLY
+# ----------------------------------------------------------------------------
+# Same 22 SRA libraries as Snakefile_dog (CanFam3.1), counted against the newest
+# releases of Ensembl and RefSeq for the Dog10K_Boxer_Tasha assembly. No
+# differential expression / fragility (COUNTS_ONLY); the pipeline stops at
+#   results/per_annotation/dog10k/counts/<ann>/all_samples.counts.tsv
+#
+#   ensembl : Ensembl 112, Canis_lupus_familiarisboxer.Dog10K_Boxer_Tasha
+#             (genome toplevel FASTA + GTF)
+#   refseq  : NCBI RefSeq GCF_000002285.5 (Annotation Release 106)
+#             (genome FASTA + GTF, native NC_/NW_ names)
+# Every annotation on its own database's genome, no chromosome renaming.
+#
+# Mapping and counting exactly as in Snakefile_dog , so the
+# two dog runs differ only in assembly + annotation:
+#   STAR 2.5.3a, genome-only index, splice junctions from the GTF inserted at
+#   mapping (--sjdbGTFfile, overhang 100), untrimmed reads;
+#   featureCounts paired (-p --countReadPairs), -s 2 -O -M -t exon -g gene_id.
+# Requires star_index_mode: per_annotation.
+# Run   :  snakemake -s Snakefile_dog10k --profile profiles/slurm
+# ============================================================================
+
+configfile: "config/pipeline.yaml"
+
+ORGANISM = "dog10k"
+COUNTS_ONLY = True
+
+# --- STAR / featureCounts as for the CanFam3.1 dog run ---
+STAR_ENV = "envs/star253.yaml"
+SJDB_AT_MAPPING = True
+SJDB_OVERHANG = 100
+STAR_EXTRA = ""
+FC_STRAND = 2                # reverse-stranded (TruSeq Stranded)
+
+# --- one genome per annotation (native chromosome names) ---
+_ENS = "https://ftp.ensembl.org/pub/release-112"
+_NCBI = "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9615/106/GCF_000002285.5_Dog10K_Boxer_Tasha"
+GENOMES = {
+    "ensembl": {"path": f"reference/{ORGANISM}/genome/Canis_lupus_familiarisboxer.Dog10K_Boxer_Tasha.dna.toplevel.fa",
+                "url":  f"{_ENS}/fasta/canis_lupus_familiarisboxer/dna/Canis_lupus_familiarisboxer.Dog10K_Boxer_Tasha.dna.toplevel.fa.gz"},
+    "refseq":  {"path": f"reference/{ORGANISM}/genome/GCF_000002285.5_Dog10K_Boxer_Tasha_genomic.fa",
+                "url":  f"{_NCBI}/GCF_000002285.5_Dog10K_Boxer_Tasha_genomic.fna.gz"},
+}
+REF = GENOMES["ensembl"]["path"]
+GENOME_URL = GENOMES["ensembl"]["url"]
+
+ENSEMBL_KEY = "ensembl"
+ANNOTATIONS = {
+    "ensembl": {
+        "url": f"{_ENS}/gtf/canis_lupus_familiarisboxer/Canis_lupus_familiarisboxer.Dog10K_Boxer_Tasha.112.gtf.gz",
+        "chrom_fix": "none",
+    },
+    "refseq": {
+        "url": f"{_NCBI}/GCF_000002285.5_Dog10K_Boxer_Tasha_genomic.gtf.gz",
+        "chrom_fix": "none",
+    },
+}
+
+# --- samples and reads: the same 22 SRA libraries as Snakefile_dog; reused from
+#   data/dog/reads if Snakefile_dog already downloaded them, otherwise fetched from
+#   ENA into data/dog10k/reads.
+_SRA = "ftp.sra.ebi.ac.uk/vol1/fastq/SRR225"
+ENA_SEP = "."
+ENA_FASTQ = {   # sample: [(R1 url, md5), (R2 url, md5)]; all 22 libraries deposited in SRA (PRJNA901164)
+    "S1545Nr1": [(f"{_SRA}/035/SRR22514235/SRR22514235_1.fastq.gz", "edf24f250206c8453724ec02a645b2e2"),
+                (f"{_SRA}/035/SRR22514235/SRR22514235_2.fastq.gz", "bf6d4359dbe9b0c76606d0a9b297f5e5")],
+    "S1545Nr2": [(f"{_SRA}/034/SRR22514234/SRR22514234_1.fastq.gz", "fc181cab7c61abe895fd0b3603a015e5"),
+                (f"{_SRA}/034/SRR22514234/SRR22514234_2.fastq.gz", "9eb67463d3350ffac8263e9567879a00")],
+    "S1545Nr3": [(f"{_SRA}/023/SRR22514223/SRR22514223_1.fastq.gz", "82e9947799689aca9c9bc1b19d6efa1d"),
+                (f"{_SRA}/023/SRR22514223/SRR22514223_2.fastq.gz", "e472635ffe7689594a42db8a20feaef3")],
+    "S1545Nr4": [(f"{_SRA}/020/SRR22514220/SRR22514220_1.fastq.gz", "f66e8e29a381c500046d1467b8ef363c"),
+                (f"{_SRA}/020/SRR22514220/SRR22514220_2.fastq.gz", "d2d0ea175c1d0de7fb881601483a1e0c")],
+    "S1545Nr5": [(f"{_SRA}/019/SRR22514219/SRR22514219_1.fastq.gz", "483357550f13889176cd43e6a633ded4"),
+                (f"{_SRA}/019/SRR22514219/SRR22514219_2.fastq.gz", "d8c7337392b33660406fe9938f7af4b1")],
+    "S1545Nr6": [(f"{_SRA}/018/SRR22514218/SRR22514218_1.fastq.gz", "caec8ad799395b074dc697c377ea5c55"),
+                (f"{_SRA}/018/SRR22514218/SRR22514218_2.fastq.gz", "105ebaee7d12f2136d2c4ea5df11a478")],
+    "S1545Nr7": [(f"{_SRA}/017/SRR22514217/SRR22514217_1.fastq.gz", "1af282754f116fbb1fb0dd6852017141"),
+                (f"{_SRA}/017/SRR22514217/SRR22514217_2.fastq.gz", "33321ee8279f600e3ef52fd02b5e0bb8")],
+    "S1545Nr8": [(f"{_SRA}/016/SRR22514216/SRR22514216_1.fastq.gz", "bbf5b743fffcd008875c5cdc93f55c86"),
+                (f"{_SRA}/016/SRR22514216/SRR22514216_2.fastq.gz", "870f915d2767400bbb359f4d97bad11c")],
+    "S1545Nr9": [(f"{_SRA}/015/SRR22514215/SRR22514215_1.fastq.gz", "351fd70e5cd2ff5160b80289350a0c4b"),
+                (f"{_SRA}/015/SRR22514215/SRR22514215_2.fastq.gz", "374e06a0914b356b45730e64b9172c32")],
+    "S1545Nr11": [(f"{_SRA}/014/SRR22514214/SRR22514214_1.fastq.gz", "029a9dff94b2495797428ab73ff9be3c"),
+                 (f"{_SRA}/014/SRR22514214/SRR22514214_2.fastq.gz", "48a9889cdb7c18c435ed12048aadc82e")],
+    "S1545Nr12": [(f"{_SRA}/033/SRR22514233/SRR22514233_1.fastq.gz", "125f1e6e281b91be78949b64bdc1223d"),
+                 (f"{_SRA}/033/SRR22514233/SRR22514233_2.fastq.gz", "ac2d34914d24b8c00bcd15ae17063b69")],
+    "S1545Nr13": [(f"{_SRA}/032/SRR22514232/SRR22514232_1.fastq.gz", "05cb6523fbd7fe8acf07b1da6caddb1e"),
+                 (f"{_SRA}/032/SRR22514232/SRR22514232_2.fastq.gz", "3b2cad89996fdbe131c3a3c14341bbdb")],
+    "S1545Nr14": [(f"{_SRA}/031/SRR22514231/SRR22514231_1.fastq.gz", "64d0b35422b8308e89768c233e8ce74f"),
+                 (f"{_SRA}/031/SRR22514231/SRR22514231_2.fastq.gz", "b74a413033df0e07e8530d7ec5c168e7")],
+    "S1545Nr15": [(f"{_SRA}/030/SRR22514230/SRR22514230_1.fastq.gz", "0bd287a386e3a301a8caf119d1ae7562"),
+                 (f"{_SRA}/030/SRR22514230/SRR22514230_2.fastq.gz", "9499a36dddfb6872247f8ea7527ff6bc")],
+    "S1545Nr16": [(f"{_SRA}/029/SRR22514229/SRR22514229_1.fastq.gz", "78bf49a39a51a821cec74cae677ed775"),
+                 (f"{_SRA}/029/SRR22514229/SRR22514229_2.fastq.gz", "bc95d3db7eeba2d82b8095abcc1961b9")],
+    "S1545Nr17": [(f"{_SRA}/028/SRR22514228/SRR22514228_1.fastq.gz", "97c1009323ccd4d47fb99bb87b7477b1"),
+                 (f"{_SRA}/028/SRR22514228/SRR22514228_2.fastq.gz", "0516e24da2f69774512068495a4a8e30")],
+    "S1545Nr19": [(f"{_SRA}/027/SRR22514227/SRR22514227_1.fastq.gz", "92671f13ad11ed8a9e19469cb67b904b"),
+                 (f"{_SRA}/027/SRR22514227/SRR22514227_2.fastq.gz", "599e533fe4e20569757190d8bc01c029")],
+    "S1545Nr20": [(f"{_SRA}/026/SRR22514226/SRR22514226_1.fastq.gz", "60091775d214429b70a36ddd12e63aaf"),
+                 (f"{_SRA}/026/SRR22514226/SRR22514226_2.fastq.gz", "daef0fe65463ec9e078f4490f5892049")],
+    "S1545Nr21": [(f"{_SRA}/025/SRR22514225/SRR22514225_1.fastq.gz", "2333b729c1dd272fff198fdc8425b91e"),
+                 (f"{_SRA}/025/SRR22514225/SRR22514225_2.fastq.gz", "1e89fba5a716347441175cac101df648")],
+    "S1545Nr22": [(f"{_SRA}/024/SRR22514224/SRR22514224_1.fastq.gz", "ae025ceb861b271310781857fea206e8"),
+                 (f"{_SRA}/024/SRR22514224/SRR22514224_2.fastq.gz", "90680afb11313747c8cf39c84ffa547a")],
+    "S1545Nr23": [(f"{_SRA}/022/SRR22514222/SRR22514222_1.fastq.gz", "5a4e5d80c930f0f479acce2af235173f"),
+                 (f"{_SRA}/022/SRR22514222/SRR22514222_2.fastq.gz", "e327582435cb918e59e166f84210afbe")],
+    "S1545Nr26": [(f"{_SRA}/021/SRR22514221/SRR22514221_1.fastq.gz", "2c56aec43c04846624b0dbd6e1b5c59d"),
+                 (f"{_SRA}/021/SRR22514221/SRR22514221_2.fastq.gz", "d562a69bb0ee9aef4a6153a5d1a57238")],
+}
+SAMPLES = list(ENA_FASTQ)
+
+def get_reads(sample):
+    d = "data/dog/reads"
+    if os.path.isfile(f"{d}/{sample}.1.fastq.gz") and os.path.isfile(f"{d}/{sample}.2.fastq.gz"):
+        return {"r1": f"{d}/{sample}.1.fastq.gz", "r2": f"{d}/{sample}.2.fastq.gz"}
+    return {"r1": f"data/{ORGANISM}/reads/{sample}.1.fastq.gz",
+            "r2": f"data/{ORGANISM}/reads/{sample}.2.fastq.gz"}
+
+# --- default target (MUST be the first rule; wildcard-free) ---
+rule all:
+    input:
+        lambda wc: FINAL_OUTPUTS,
+
+# --- shared engine (stops at the count matrices: COUNTS_ONLY) ---
+include: "common.smk"

@@ -1,0 +1,7 @@
+# STAR used for mouse and pig (same version the snakemake-wrappers v5.8.3 STAR rules pinned)
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - star =2.7.11b

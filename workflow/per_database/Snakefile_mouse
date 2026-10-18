@@ -1,0 +1,108 @@
+# -*- coding: utf-8 -*-
+# ============================================================================
+# Snakefile_mouse: annotation comparison for the MOUSE anchor study
+# ----------------------------------------------------------------------------
+# Study : Efcab4b knockout mouse liver (Cheng et al. 2025, Biochem Biophys Rep)
+# Data  : ArrayExpress E-MTAB-13110 / ENA ERP148613 (3x WT vs 3x KO, PE 150 bp)
+# Genome: Ensembl GRCm39. Annotations compared: Ensembl 110, RefSeq, GENCODE vM33
+#         (= Ensembl 110 gene models), UCSC, as in the calibration
+#         (run_mouse_final.sh: Ensembl 110 anchor, featureCounts defaults, no -O/-M).
+#         Every annotation is mapped to ITS OWN database's genome, with its native
+#         coordinates and chromosome names (no renaming): Ensembl 110 primary
+#         assembly, RefSeq GCF_000001635.27, GENCODE M33 primary assembly, UCSC mm39.
+#         Requires star_index_mode: per_annotation.
+# Run   :  snakemake -s Snakefile_mouse --profile profiles/slurm
+#          (STAR index mode + data paths: config/pipeline.yaml)
+# ============================================================================
+
+configfile: "config/pipeline.yaml"
+
+ORGANISM = "mouse"
+COUNTS_ONLY = True
+
+# --- genome (Ensembl chromosome naming: 1..19, X, Y, MT) ---
+GENOME_URL = "https://ftp.ensembl.org/pub/release-110/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz"
+REF = f"reference/{ORGANISM}/Mus_musculus.GRCm39.110.dna.primary_assembly.fa"
+
+# --- one genome per annotation (native chromosome names) ---
+GENOMES = {
+    "ensembl": {"path": REF, "url": GENOME_URL},
+    "refseq":  {"path": f"reference/{ORGANISM}/genome/GCF_000001635.27_GRCm39_genomic.fa",
+                "url":  "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/10090/GCF_000001635.27-RS_2024_02/GCF_000001635.27_GRCm39_genomic.fna.gz"},
+    "gencode": {"path": f"reference/{ORGANISM}/genome/GENCODE_M33.GRCm39.primary_assembly.genome.fa",
+                "url":  "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M33/GRCm39.primary_assembly.genome.fa.gz"},
+    "ucsc":    {"path": f"reference/{ORGANISM}/genome/mm39.fa",
+                "url":  "https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.gz"},
+}
+
+SJDB_OVERHANG = 149          # reads are 150 bp -> 150 - 1
+STAR_EXTRA = "--outSAMstrandField intronMotif --genomeLoad NoSharedMemory"
+FC_MULTI = ""                # featureCounts defaults (no -O, no -M), as run_mouse_final.sh
+
+# --- annotations to compare (Ensembl = anchor); each GTF on its own genome, no renaming ---
+ENSEMBL_KEY = "ensembl"
+ANNOTATIONS = {
+    "ensembl": {
+        "url": "https://ftp.ensembl.org/pub/release-110/gtf/mus_musculus/Mus_musculus.GRCm39.110.gtf.gz",
+        "chrom_fix": "none",
+    },
+    "refseq": {
+        "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/10090/GCF_000001635.27-RS_2024_02/GCF_000001635.27_GRCm39_genomic.gtf.gz",
+        "chrom_fix": "none",
+    },
+    "gencode": {
+        "url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M33/gencode.vM33.annotation.gtf.gz",
+        "chrom_fix": "none",
+    },
+    "ucsc": {
+        "url": "https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/genes/mm39.ncbiRefSeq.gtf.gz",
+        "chrom_fix": "none",
+    },
+}
+
+# --- samples: friendly name -> ENA run + condition (from the E-MTAB-13110 SDRF) ---
+SAMPLES_META = {
+    "WT_1": {"run": "ERR11593203", "condition": "WT"},
+    "WT_2": {"run": "ERR11593204", "condition": "WT"},
+    "WT_3": {"run": "ERR11593205", "condition": "WT"},
+    "KO_1": {"run": "ERR11593206", "condition": "KO"},
+    "KO_2": {"run": "ERR11593207", "condition": "KO"},
+    "KO_3": {"run": "ERR11593208", "condition": "KO"},
+}
+SAMPLES = list(SAMPLES_META.keys())
+
+# Differential expression and fragile-gene analysis are run on the laptop from the
+# count matrices (../../run_all.sh); this workflow stops at the counts.
+
+# Reads: rule download_fastq (common.smk) fetches the .fastq.gz from ENA into
+# data/mouse/reads (MD5-checked).
+_ENA = "ftp.sra.ebi.ac.uk/vol1/fastq/ERR115"
+ENA_FASTQ = {   # sample: [(R1 url, md5), (R2 url, md5)]; from the ENA filereport
+    "WT_1": [(f"{_ENA}/003/ERR11593203/ERR11593203_1.fastq.gz", "504927b80a7a11bac3350b5f59623d54"),
+             (f"{_ENA}/003/ERR11593203/ERR11593203_2.fastq.gz", "89d3ad41a59c0e622d170641f24aebc8")],
+    "WT_2": [(f"{_ENA}/004/ERR11593204/ERR11593204_1.fastq.gz", "5e598603f5215770363ca8247874d867"),
+             (f"{_ENA}/004/ERR11593204/ERR11593204_2.fastq.gz", "511c4a1aac85e1e891115f564a5fc1d7")],
+    "WT_3": [(f"{_ENA}/005/ERR11593205/ERR11593205_1.fastq.gz", "842e4b6c915ae20f44e5f045241c2140"),
+             (f"{_ENA}/005/ERR11593205/ERR11593205_2.fastq.gz", "6dea3d95682ecfa6bb24817be39ff603")],
+    "KO_1": [(f"{_ENA}/006/ERR11593206/ERR11593206_1.fastq.gz", "9f50b7f88c41290f480b5e1692337e3b"),
+             (f"{_ENA}/006/ERR11593206/ERR11593206_2.fastq.gz", "ed4f17f09c32bbd054901600d10cdd0a")],
+    "KO_2": [(f"{_ENA}/007/ERR11593207/ERR11593207_1.fastq.gz", "09aa58f4a83481c7436ca63c32bcabb8"),
+             (f"{_ENA}/007/ERR11593207/ERR11593207_2.fastq.gz", "42036a5ad9aa68ff2d2239f41756b810")],
+    "KO_3": [(f"{_ENA}/008/ERR11593208/ERR11593208_1.fastq.gz", "4765994bd5d39ca5e8a093e8d1b24e81"),
+             (f"{_ENA}/008/ERR11593208/ERR11593208_2.fastq.gz", "fe5f0aa06457fe6f5ece70f3f5b4898b")],
+}
+READS_DIR = f"data/{ORGANISM}/reads"
+
+def get_reads(sample):
+    return {
+        "r1": f"{READS_DIR}/{sample}_1.fastq.gz",
+        "r2": f"{READS_DIR}/{sample}_2.fastq.gz",
+    }
+
+# --- default target (MUST be the first rule; wildcard-free) ---
+rule all:
+    input:
+        lambda wc: FINAL_OUTPUTS,
+
+# --- shared engine (references, STAR, featureCounts, merge, MultiQC, DE) ---
+include: "common.smk"

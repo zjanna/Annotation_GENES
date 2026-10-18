@@ -1,0 +1,23 @@
+sample	dog_id	testicle	breed	group	DvsUD	DvsC	UDvsC
+S1545Nr1	6906	descended	shih_tsu	treated	T	T	
+S1545Nr2	6906	undescended	shih_tsu	treated	C		T
+S1545Nr3	6978	descended	buldog	treated	T	T	
+S1545Nr4	6978	undescended	buldog	treated	C		T
+S1545Nr5	7022	descended	buldog	treated	T	T	
+S1545Nr6	7022	undescended	buldog	treated	C		T
+S1545Nr7	7030	descended	yorkshire	treated	T	T	
+S1545Nr8	7030	undescended	yorkshire	treated	C		T
+S1545Nr9	6968	descended	chua_chua	treated	T	T	
+S1545Nr11	7040	descended	mops	treated	T	T	
+S1545Nr12	7040	undescended	mops	treated	C		T
+S1545Nr13	7021	descended	maltanczyk	treated	T	T	
+S1545Nr14	7021	undescended	maltanczyk	treated	C		T
+S1545Nr15	6976	normal	shih_tsu	control		C	C
+S1545Nr16	7005	normal	shih_tsu	control		C	C
+S1545Nr17	6975	normal	buldog	control		C	C
+S1545Nr19	7113	normal	yorkshire	control		C	C
+S1545Nr20	7114	normal	maltanczyk	control		C	C
+S1545Nr21	6901	normal	mops	control		C	C
+S1545Nr22	6923	normal	chua_chua	control		C	C
+S1545Nr23	6930	descended	shih_tsu	treated		T	
+S1545Nr26	6931	undescended	maplti_oo	treated	C		T

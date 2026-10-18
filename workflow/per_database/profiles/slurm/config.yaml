@@ -1,0 +1,171 @@
+# ============================================================================
+# SLURM profile for Snakemake 9.x on the Eagle cluster (PCSS Poznan)
+# ----------------------------------------------------------------------------
+# This file is read via `snakemake --profile profiles/slurm` (it must live in
+# profiles/slurm/config.yaml; that is where Snakemake looks for a profile). It tells Snakemake
+# to submit each rule as its own SLURM job, and how many CPUs / how much memory /
+# how much wall-time each rule should request.
+#
+# Eagle: ~1000 nodes, Intel Xeon E5 (28 cores/node), 64/128/256 GB RAM/node,
+# Lustre shared scratch. Partitions: fast (1h), standard (7 days, <=128 GB),
+# bigmem (>128 GB), tesla (GPU).
+# ============================================================================
+
+executor: slurm                 # submit every job through the SLURM scheduler
+jobs: 30                        # at most 30 jobs queued/running at once
+latency-wait: 120               # wait up to 120 s for output files to appear (Lustre lag)
+software-deployment-method:     # run wrapper rules in their own conda environments
+  - conda                       # (Snakemake 8/9 replacement for the old `use-conda: true`)
+rerun-incomplete: true          # re-run any job whose outputs are incomplete
+keep-going: true                # if one job fails, keep running independent jobs
+printshellcmds: true            # print the actual shell command of each job (for logs)
+restart-times: 1                # retry a failed job once (handles transient errors)
+
+# ----------------------------------------------------------------------------
+# Default resources: used by any rule that does not override them below.
+# ----------------------------------------------------------------------------
+default-resources:
+  slurm_account: "pl0296-02"        # accounting/grant code charged for the jobs
+  slurm_partition: "biology_standard"
+  runtime: 240                      # wall-time in MINUTES
+  mem_mb: 4000                      # memory in MB
+  cpus_per_task: 1
+
+# ----------------------------------------------------------------------------
+# Per-rule resources. Keys MUST match rule names in the Snakefile.
+# ----------------------------------------------------------------------------
+set-resources:
+
+  # --- data / reference acquisition (network-bound, light on CPU/RAM) ---
+  download_fastq:                   # wget of ready .fastq.gz from ENA + MD5 check
+    mem_mb: 2000
+    cpus_per_task: 1
+    runtime: 240                    # 4h (2 x ~2.5-3 GB per sample)
+
+  download_genome:
+    mem_mb: 4000
+    cpus_per_task: 1
+    runtime: 120
+
+  download_gtf:
+    mem_mb: 4000
+    cpus_per_task: 1
+    runtime: 60
+
+  download_assembly_report:
+    mem_mb: 1000
+    cpus_per_task: 1
+    runtime: 15
+
+  harmonize_gtf:                    # rename chromosomes to Ensembl style (awk)
+    mem_mb: 4000
+    cpus_per_task: 1
+    runtime: 30
+
+  # --- quality control ---
+  fastqc:
+    mem_mb: 2000
+    cpus_per_task: 1
+    runtime: 60
+
+  fastqc2:
+    mem_mb: 2000
+    cpus_per_task: 1
+    runtime: 60
+
+  # --- trimming ---
+  bbduk:
+    mem_mb: 8000
+    cpus_per_task: 7
+    runtime: 180                    # 3h
+
+  star_gtf:                         # filter the GTF to exons usable as STAR sjdb
+    mem_mb: 4000
+    cpus_per_task: 1
+    runtime: 30
+
+  # --- alignment ---
+  star_index:
+    mem_mb: 64000                   # ~2.5-2.7 Gb genome + sjdb needs >31 GB (STAR limit set to 54 GB in common.smk)
+    cpus_per_task: 8
+    runtime: 360                    # 6h (once per index: 1 in "ensembl" mode, 1 per annotation in "per_annotation")
+
+  star_align:
+    mem_mb: 64000                   # index (~27 GB) + BAM sorting (capped at 25 GB in common.smk)
+    cpus_per_task: 8
+    runtime: 360                    # 6h per sample
+
+  samtools_sort:
+    mem_mb: 32000                   # -m 3G x 8 threads = 24 GB + buffer
+    cpus_per_task: 8
+    runtime: 180
+
+  samtools_index:
+    mem_mb: 2000
+    cpus_per_task: 2
+    runtime: 30
+
+  # --- counting (runs once per sample PER ANNOTATION) ---
+  featurecounts:
+    mem_mb: 8000
+    cpus_per_task: 4
+    runtime: 60                     # 1h per (sample, annotation) with margin
+
+  merge_counts:
+    mem_mb: 4000
+    cpus_per_task: 1
+    runtime: 15
+
+  # --- gene tables from the GTFs ---
+  genemap:
+    mem_mb: 4000
+    runtime: 30
+  exons_table:
+    mem_mb: 4000
+    runtime: 30
+  ensembl_gene_features:
+    mem_mb: 4000
+    runtime: 30
+
+  # --- DE + fragility (R) ---
+  de:
+    mem_mb: 16000
+    cpus_per_task: 1
+    runtime: 120
+  fragility:
+    mem_mb: 16000
+    cpus_per_task: 1
+    runtime: 60
+
+  # --- aggregate report ---
+  multiqc:
+    mem_mb: 4000
+    cpus_per_task: 1
+    runtime: 180
+
+# ----------------------------------------------------------------------------
+# Thread counts per rule: MUST stay consistent with cpus_per_task above.
+# (Snakemake uses {threads} inside the rules; SLURM allocates cpus_per_task.)
+# ----------------------------------------------------------------------------
+set-threads:
+  download_fastq: 1
+  download_genome: 1
+  download_gtf: 1
+  download_assembly_report: 1
+  harmonize_gtf: 1
+  star_gtf: 1
+  fastqc: 1
+  fastqc2: 1
+  bbduk: 7
+  star_index: 8
+  star_align: 8
+  samtools_sort: 8
+  samtools_index: 2
+  featurecounts: 4
+  merge_counts: 1
+  genemap: 1
+  exons_table: 1
+  ensembl_gene_features: 1
+  de: 1
+  fragility: 1
+  multiqc: 1

@@ -1,0 +1,77 @@
+# -*- coding: utf-8 -*-
+# ============================================================================
+# Snakefile_pig: annotation comparison for the PIG study
+# ----------------------------------------------------------------------------
+# Study : Umbilical hernia in pigs (Wozniak et al.), muscle tissue, case-control
+# Data  : SRA PRJNA1147879 (PE 2x100 bp, TruSeq Stranded mRNA, NovaSeq 6000)
+# Genome: Ensembl Sscrofa11.1, annotation release 104 (as published).
+#         Annotations compared: Ensembl, RefSeq, UCSC (no GENCODE for pig).
+#         Every annotation is mapped to ITS OWN database's genome, with its native
+#         coordinates and chromosome names (no renaming): Ensembl 104 toplevel,
+#         RefSeq GCF_000003025.6, UCSC susScr11. Requires star_index_mode: per_annotation.
+# Run   :  snakemake -s Snakefile_pig --profile profiles/slurm
+#          (STAR index mode + data paths: config/pipeline.yaml)
+# ============================================================================
+
+configfile: "config/pipeline.yaml"
+
+ORGANISM = "pig"
+COUNTS_ONLY = True
+
+# --- genome (Ensembl Sscrofa11.1) ---
+GENOME_URL = "https://ftp.ensembl.org/pub/release-104/fasta/sus_scrofa/dna/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa.gz"
+REF = f"reference/{ORGANISM}/Sus_scrofa.Sscrofa11.1.dna.toplevel.fa"
+
+# --- one genome per annotation (native chromosome names) ---
+GENOMES = {
+    "ensembl": {"path": REF, "url": GENOME_URL},
+    "refseq":  {"path": f"reference/{ORGANISM}/genome/GCF_000003025.6_Sscrofa11.1_genomic.fa",
+                "url":  "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9823/106/GCF_000003025.6_Sscrofa11.1/GCF_000003025.6_Sscrofa11.1_genomic.fna.gz"},
+    "ucsc":    {"path": f"reference/{ORGANISM}/genome/susScr11.fa",
+                "url":  "https://hgdownload.soe.ucsc.edu/goldenPath/susScr11/bigZips/susScr11.fa.gz"},
+}
+
+SJDB_OVERHANG = 99           # reads are 100 bp -> 100 - 1
+# STAR flags.
+STAR_EXTRA = "--outSAMstrandField intronMotif --genomeLoad NoSharedMemory"
+
+# --- annotations to compare (Ensembl 104 = anchor = published one); each GTF on its own genome ---
+ENSEMBL_KEY = "ensembl"
+ANNOTATIONS = {
+    "ensembl": {
+        "url": "https://ftp.ensembl.org/pub/release-104/gtf/sus_scrofa/Sus_scrofa.Sscrofa11.1.104.gtf.gz",
+        "chrom_fix": "none",
+    },
+    "refseq": {
+        "url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/annotation_releases/9823/106/GCF_000003025.6_Sscrofa11.1/GCF_000003025.6_Sscrofa11.1_genomic.gtf.gz",
+        "chrom_fix": "none",
+    },
+    "ucsc": {
+        "url": "https://hgdownload.soe.ucsc.edu/goldenPath/susScr11/bigZips/genes/susScr11.ncbiRefSeq.gtf.gz",
+        "chrom_fix": "none",
+    },
+}
+
+# --- samples ---
+# Reads: raw reads from SRA PRJNA1147879, adapter- and quality-trimmed by
+# trim_pig.sh (BBDuk, the anchor study's settings) into data/pig/fastq as
+#   {sample}.1.trimmed.fastq.gz and {sample}.2.trimmed.fastq.gz
+FASTQ_DIR = config["data"]["pig_fastq"]
+SAMPLES = [f"RNA_{i}" for i in range(1, 31)]     # muscle; RNA_<i> = SRA library S3797Nr<i>
+
+# Differential expression and fragile-gene analysis are run on the laptop from the
+# count matrices (../../run_all.sh); this workflow stops at the counts.
+
+def get_reads(sample):
+    return {
+        "r1": f"{FASTQ_DIR}/{sample}.1.trimmed.fastq.gz",
+        "r2": f"{FASTQ_DIR}/{sample}.2.trimmed.fastq.gz",
+    }
+
+# --- default target (MUST be the first rule; wildcard-free) ---
+rule all:
+    input:
+        lambda wc: FINAL_OUTPUTS,
+
+# --- shared engine ---
+include: "common.smk"

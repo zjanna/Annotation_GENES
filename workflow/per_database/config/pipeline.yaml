@@ -1,0 +1,29 @@
+# ============================================================================
+# config/pipeline.yaml: ustawienia pipeline'u (czytane przez Snakefile_*)
+# ----------------------------------------------------------------------------
+# Wszystkie ścieżki są WZGLĘDNE względem katalogu repozytorium (tam, skąd
+# uruchamiasz snakemake / sbatch). Dzięki temu nic nie trzeba zmieniać przy
+# pracy z innego konta; wystarczy raz założyć dowiązania w data/ (patrz
+# URUCHOMIENIE.md). Każdą wartość można też nadpisać z linii poleceń, np.:
+#   snakemake -s Snakefile_dog --profile profiles/slurm --config star_index_mode=ensembl
+# ============================================================================
+
+# Jak budowany jest indeks STAR (plik sjdb = połączenia egzonów z anotacji):
+#   per_annotation – OSOBNY indeks STAR dla każdej bazy anotacji; każda baza ma
+#                    własne mapowanie i własne zliczanie (anotacja wpływa na
+#                    mapowanie ORAZ na featureCounts).
+#   ensembl        – pierwotny projekt: jeden indeks z GTF Ensembl, mapowanie raz,
+#                    bazy różnią się tylko w featureCounts.
+# Wyniki trafiają do results/<tryb>/<organizm>/, więc oba tryby mogą istnieć
+# obok siebie. BAM-y z indeksu Ensembl są wspólne dla obu trybów (liczone raz).
+star_index_mode: per_annotation
+
+# BAM-y z STAR: false = usuwane od razu po zliczeniu przez featureCounts (oszczędza
+# ~4-5 GB na próbkę i bazę); true = zostają w results/alignments/. Logi STAR
+# (Log.final.out, SJ.out.tab) zostają zawsze.
+keep_bams: false
+
+# Dane wejściowe (ścieżki względne). Mysz i pies są pobierane z ENA automatycznie;
+# świnię pobiera z SRA i przycina trim_pig.sh.
+data:
+  pig_fastq: data/pig/fastq   # wynik trim_pig.sh: {sample}.1.trimmed.fastq.gz / .2.trimmed.fastq.gz
