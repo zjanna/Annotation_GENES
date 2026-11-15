@@ -39,19 +39,20 @@ Rscript -e 'd <- read.delim("calibration_dog/results/dog/de/ensembl_toptable.tsv
   cat(sprintf("dog: %d DEGs (protein-coding, UD vs C; published 7619)\n", sum(d$adj.P.Val < 0.05 & abs(d$logFC) > 1.5, na.rm = TRUE)))' \
   | tee tables/calibration_dog.txt
 
-echo "== fragile vs stable genes (Gene ID matching)"
-(cd mouse_local  && Rscript ../scripts/fragility_features.R mouse 0   mouse)
-(cd pig_local    && Rscript ../scripts/fragility_features.R pig   0   pig)
-(cd dog_local    && Rscript ../scripts/fragility_features.R dog   1.5 dog)
-(cd dog10k_local && Rscript ../scripts/fragility_features.R dog   1.5 dog10k)
-for k in mouse_local/results/mouse pig_local/results/pig dog_local/results/dog dog10k_local/results/dog; do
-  cp "$k/fragility/summary.tsv" "tables/fragility_summary_$(echo "$k" | cut -d_ -f1).tsv"
-done
+echo "== gene matching by genomic coordinates"
+Rscript scripts/coord_match.R            # tables/coord_match/ (Table 3; Figs 2, 4, 5)
+
+echo "== annotation-sensitive (fragile) genes"
+Rscript scripts/fragility_coord.R        # tables/fragility_coord/ (Tables 5, 6; Fig. 6)
+
+echo "== sensitivity analyses"
+Rscript scripts/de_common.R              # one common DE method; scale of the DE-method effect (Table 4)
+Rscript scripts/topn_agreement.R         # top-N agreement, log2FC correlation (Results)
+bash workflow/refseq_curation.sh         # share of curated RefSeq records (Results)
 
 echo "== tables"
-Rscript scripts/fragility_effects.R      # Table 3
-Rscript scripts/summary_tables.R         # agreement numbers (Results, Figs 1, 2, 4), Table 4
-Rscript scripts/calibration.R            # Table 1 (mouse, pig)
+Rscript scripts/summary_tables.R         # Gene-ID agreement numbers (Results, Fig. 1), qPCR genes (Table 7)
+Rscript scripts/calibration.R            # Table 2 (mouse, pig)
 Rscript scripts/xref_coverage.R          # Gene ID cross-reference shares (Results)
 
 echo "== figures"

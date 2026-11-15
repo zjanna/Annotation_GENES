@@ -33,7 +33,7 @@ for (k in names(dbs)) { d <- dbs[[k]]
 print(pairs, row.names = FALSE)
 write.table(pairs, "tables/agreement_all_pairs.tsv", sep = "\t", quote = FALSE, row.names = FALSE)
 
-# Table 4: the eleven pig genes tested by qPCR in the anchor study (8 confirmed)
+# Table 7: the eleven pig genes tested by qPCR in the anchor study (8 confirmed)
 qpcr <- data.frame(gene = c("SIM1", "PITX1", "HOXA7", "METTL21C", "PVALB", "ALX1", "EYA2", "TBX1",
                             "IRX5", "ALX4", "OSR2"),
                    qpcr_confirmed = rep(c("yes", "no"), c(8, 3)))

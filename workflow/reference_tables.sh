@@ -106,4 +106,11 @@ gzcat "$TMP/pig112_ensembl.gtf.gz" | awk -F'\t' '$3=="gene"{gid=bt="";
     if (match($9,/gene_id "[^"]+"/)) gid=substr($9,RSTART+9,RLENGTH-10);
     if (match($9,/gene_biotype "[^"]+"/)) bt=substr($9,RSTART+14,RLENGTH-15); print gid"\t"bt}' > "$A/ensembl112_genes.tsv"
 fetch "$ENS/release-112/tsv/sus_scrofa/Sus_scrofa.Sscrofa11.1.112.entrez.tsv.gz" "$ROOT/xref/ens_pig112_entrez.tsv.gz"
+# NCBI assembly reports: RefSeq -> Ensembl sequence names for the coordinate-based gene
+# matching (scripts/coord_match.R); the GTFs above are reused from $TMP
+G=https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF
+fetch "$G/000/001/635/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_assembly_report.txt" "$TMP/mouse_assembly_report.txt"
+fetch "$G/000/003/025/GCF_000003025.6_Sscrofa11.1/GCF_000003025.6_Sscrofa11.1_assembly_report.txt" "$TMP/pig_assembly_report.txt"
+fetch "$G/000/002/285/GCF_000002285.3_CanFam3.1/GCF_000002285.3_CanFam3.1_assembly_report.txt" "$TMP/dog_assembly_report.txt"
+fetch "$G/000/002/285/GCF_000002285.5_Dog10K_Boxer_Tasha/GCF_000002285.5_Dog10K_Boxer_Tasha_assembly_report.txt" "$TMP/dog10k_assembly_report.txt"
 echo "reference tables ready"

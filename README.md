@@ -1,14 +1,16 @@
 # Annotation choice and RNA-seq differential expression across organisms
 
-Code accompanying the manuscript *"The impact of gene annotation choice on RNA-seq
-differential expression across organisms"* (Zyprych-Walczak,
-Beręsewicz, Skotarczak; submitted to *Genes*).
+Code accompanying the manuscript *"Ensembl and RefSeq disagree more on differential expression
+in less mature genome annotations: a three-organism re-analysis"* (Zyprych-Walczak,
+Beręsewicz, Skotarczak; *Genes*, revised version). The results in the paper were produced with
+release `v1.0-revision1` of this repository.
 <!-- update the title and add the DOI once published -->
 
 For three organisms of decreasing annotation maturity (mouse, pig, dog) we reproduce a
 published differential-expression (DE) analysis, repeat it with each annotation
 database's own genome and annotation (Ensembl, RefSeq, UCSC; GENCODE for mouse), match
-genes between databases by NCBI Gene ID and compare the DE gene lists. Dog is also
+genes between databases by genomic coordinates (strand-specific exon overlap) and by NCBI
+Gene ID, and compare the DE gene lists. Dog is also
 analysed on the current reference assembly (Dog10K_Boxer_Tasha) with the latest
 annotations.
 
@@ -63,12 +65,17 @@ data/sample_runs.tsv             sample names used here -> SRA/ENA runs
 | `scripts/de_analysis.R` | limma-voom + duplicateCorrelation per database (pig; model of the anchor study) | Table 1 |
 | `scripts/de_edger.R` | edgeR likelihood-ratio test per database (dog; method of the anchor study) | Table 1 |
 | `scripts/matching.R` | gene matching between databases by NCBI Gene ID; agreement and share of DEGs without a counterpart | all |
-| `scripts/fragility_features.R` | features of fragile vs stable Ensembl DEGs | Table 2, Fig. 6 |
-| `scripts/fragility_effects.R` | AUC with bootstrap CI, Fisher / Wilcoxon p | Table 3 |
-| `scripts/summary_tables.R` | agreement numbers quoted in the Results; the qPCR-tested pig genes | Results, Figs 1, 2, 4, Table 4 |
+| `scripts/coord_match.R` | gene matching Ensembl–RefSeq by genomic coordinates (three overlap criteria); share of DEGs without a counterpart, Jaccard on loci | Table 3, Figs 2, 4, 5 |
+| `scripts/coord_results.R` | reads the coordinate-matching results for the figure scripts | Figs 2, 4, 5 |
+| `scripts/fragility_coord.R` | stable vs annotation-sensitive DEGs, each database as the reference, coordinate matching; AUC with bootstrap CI | Tables 5, 6, Fig. 6 |
+| `scripts/de_common.R` | one common DE method (DESeq2, edgeR QL) for all organisms; Jaccard between DE methods (scale) | Table 4 |
+| `scripts/topn_agreement.R` | top-N agreement and log2FC correlation (independent of DEG-list size) | Results |
+| `workflow/refseq_curation.sh` | share of curated (NM_/NR_) RefSeq records, a maturity proxy independent of cross-references | Results |
+| `scripts/summary_tables.R` | Gene-ID agreement numbers quoted in the Results; the qPCR-tested pig genes | Results, Fig. 1, Table 7 |
 | `scripts/xref_coverage.R` | share of Ensembl genes with an NCBI Gene ID (dog Ensembl 92 vs 112, pig 104 vs 112) | Results |
-| `scripts/calibration.R` | comparison with the published results (mouse, pig; dog in `run_all.sh`) | Table 1 |
+| `scripts/calibration.R` | comparison with the published results (mouse, pig; dog in `run_all.sh`) | Table 2 |
 | `scripts/fig_heatmap.R` … `fig_fragility.R` | Figures 1–6 | Figs 1–6 |
+| `scripts/fragility_features.R`, `scripts/fragility_effects.R` | fragile vs stable Ensembl DEGs with Gene-ID matching, as in the first submitted version (superseded by `fragility_coord.R`; also called by the optional fragility rule of the Snakemake workflow) | – |
 
 ## How to reproduce
 
@@ -97,7 +104,8 @@ bash workflow/reference_tables.sh
 bash run_all.sh
 ```
 
-Outputs: `figures/fig1_jaccard.pdf` … `fig6_fragility.pdf` and `tables/`.
+Outputs: `figures/fig1_jaccard.pdf` … `fig6_fragility.pdf` and `tables/` (including
+`tables/coord_match/`, `tables/fragility_coord/`, `tables/de_common/`, `tables/topn_agreement/`).
 
 **Calibration.** Before comparing databases, each anchor study's Ensembl DE result is
 reproduced from the public raw data with the anchor study's DE method (`run_all.sh`,
